@@ -1,0 +1,29 @@
+# GameTune training configuration
+
+data:
+  train_root: data/tokenized/train
+  test_root: data/tokenized/test
+
+model:
+  vocab_size: 898
+  context_size: 2048
+  embedding_size: 384
+  num_layers: 6
+  num_heads: 6
+  dropout: 0.1
+
+training:
+  batch_size: 4
+  learning_rate: 0.0003
+  weight_decay: 0.01
+  max_steps: 1000
+  eval_interval: 100
+  eval_batches: 10
+  checkpoint_interval: 500
+  num_workers: 2
+  device: cuda
+
+checkpoints:
+  output_dir: checkpoints
+  checkpoint_name: gametune.pt
+

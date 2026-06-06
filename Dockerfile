@@ -8,5 +8,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install --no-cache-dir \
     "mido" \
-    "pytest"
+    "pytest" \
+    "pyyaml"
 

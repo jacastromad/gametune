@@ -216,9 +216,21 @@ docker compose run --rm gametune \
 
 ## Train
 
-TBD
+Train the model:
 
-## Run
+```bash
+docker compose run --rm gametune \
+    python src/train.py --config config.yml
+```
 
-TBD
+## Generate
+
+Generate token sequences and MIDI:
+
+```bash
+docker compose run --rm gametune \
+    python src/generate.py \
+    --checkpoint checkpoints/gametune.pt \
+    --output outputs/generated.mid
+```
 

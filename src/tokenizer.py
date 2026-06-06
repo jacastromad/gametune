@@ -258,6 +258,114 @@ class GameTuneTokenizer:
 
         return None
 
+    def tokens_to_midi(
+        self,
+        tokens: list[str],
+        output_path: Path,
+        ticks_per_beat: int = 22050,
+        tempo_bpm: int = 120,
+    ) -> None:
+        """
+        Convert text tokens back into a MIDI file.
+        """
+        ticks_per_step = ticks_per_beat / TIME_STEPS_PER_BEAT
+    
+        midi = mido.MidiFile(type=1, ticks_per_beat=ticks_per_beat)
+    
+        tempo_track = mido.MidiTrack()
+        tempo_track.append(mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(tempo_bpm), time=0))
+        tempo_track.append(mido.MetaMessage("end_of_track", time=0))
+        midi.tracks.append(tempo_track)
+    
+        channel_to_track_name = {
+            "CHANNEL_P1": "p1",
+            "CHANNEL_P2": "p2",
+            "CHANNEL_TR": "tr",
+            "CHANNEL_NO": "no",
+        }
+    
+        tracks = {}
+    
+        for channel_token, track_name in channel_to_track_name.items():
+            track = mido.MidiTrack()
+            track.append(mido.MetaMessage("track_name", name=track_name, time=0))
+            tracks[channel_token] = []
+            midi.tracks.append(track)
+    
+        current_step = 0
+        index = 0
+    
+        while index < len(tokens):
+            token = tokens[index]
+    
+            if token in {"BOS", "EOS", "PAD"}:
+                index += 1
+                continue
+    
+            if token.startswith("TIME_SHIFT_"):
+                current_step += int(token.removeprefix("TIME_SHIFT_"))
+                index += 1
+                continue
+    
+            if token.startswith("CHANNEL_"):
+                if index + 3 >= len(tokens):
+                    break
+    
+                channel = token
+                note_token = tokens[index + 1]
+                velocity_token = tokens[index + 2]
+                duration_token = tokens[index + 3]
+    
+                if (
+                    not note_token.startswith("NOTE_")
+                    or not velocity_token.startswith("VELOCITY_")
+                    or not duration_token.startswith("DURATION_")
+                ):
+                    index += 1
+                    continue
+    
+                if channel not in tracks:
+                    index += 4
+                    continue
+    
+                pitch = int(note_token.removeprefix("NOTE_"))
+                velocity = int(velocity_token.removeprefix("VELOCITY_"))
+                duration = int(duration_token.removeprefix("DURATION_"))
+    
+                start_tick = round(current_step * ticks_per_step)
+                duration_tick = max(1, round(duration * ticks_per_step))
+                end_tick = start_tick + duration_tick
+    
+                tracks[channel].append((start_tick, "note_on", pitch, velocity))
+                tracks[channel].append((end_tick, "note_off", pitch, 0))
+    
+                index += 4
+                continue
+    
+            index += 1
+    
+        for midi_track, channel_token in zip(midi.tracks[1:], channel_to_track_name):
+            events = sorted(tracks[channel_token], key=lambda event: event[0])
+            previous_tick = 0
+    
+            for tick, message_type, pitch, velocity in events:
+                delta = max(0, tick - previous_tick)
+                previous_tick = tick
+    
+                midi_track.append(
+                    mido.Message(
+                        message_type,
+                        note=pitch,
+                        velocity=velocity,
+                        time=delta,
+                    )
+                )
+    
+            midi_track.append(mido.MetaMessage("end_of_track", time=0))
+    
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        midi.save(output_path)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
