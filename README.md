@@ -165,15 +165,15 @@ DURATION_2
 
 Tokenized files analyzed: 5278
 
-| Metric | Value |
-|----------|----------|
-| Min tokens | 2 |
-| Mean tokens | 2912.10 |
-| Median tokens | 1390.50 |
-| P90 | 7034 |
-| P95 | 9883 |
-| P99 | 20843 |
-| Max tokens | 190170 |
+|    Metric     |  Value   |
+|---------------|----------|
+| Min tokens    | 2        |
+| Mean tokens   | 2912.10  |
+| Median tokens | 1390.50  |
+| P90           | 7034     |
+| P95           | 9883     |
+| P99           | 20843    |
+| Max tokens    | 190170   |
 
 ### Training Decisions
 
