@@ -1,0 +1,17 @@
+services:
+  gametune:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gametune
+    environment:
+      - PYTHONPATH=/workspace
+    volumes:
+      - .:/workspace:Z
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
