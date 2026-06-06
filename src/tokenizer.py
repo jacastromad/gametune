@@ -1,8 +1,8 @@
 """
 tokenizer.py
 
-Convert NES-MDB MIDI files into a simple text event stream.
-This first version supports MIDI -> structured note events -> text tokens.
+Convert NES-MDB MIDI files into GameTune tokens.
+Supports MIDI -> structured note events -> text tokens -> token IDs.
 """
 
 from pathlib import Path
@@ -19,6 +19,22 @@ CHANNEL_TRACKS = {
 }
 
 TIME_STEPS_PER_BEAT = 24
+
+MAX_TIME_SHIFT = 384
+MAX_DURATION = 384
+
+SPECIAL_TOKENS = [
+    "PAD",
+    "BOS",
+    "EOS",
+]
+
+CHANNEL_TOKENS = [
+    "CHANNEL_P1",
+    "CHANNEL_P2",
+    "CHANNEL_TR",
+    "CHANNEL_NO",
+]
 
 
 @dataclass(frozen=True)
@@ -38,6 +54,60 @@ class GameTuneTokenizer:
     """
     Tokenizer for NES-MDB MIDI files.
     """
+
+    def __init__(self) -> None:
+        self.token_to_id = self._build_token_to_id()
+        self.id_to_token = {
+            token_id: token
+            for token, token_id in self.token_to_id.items()
+        }
+
+    def _build_token_to_id(self) -> dict[str, int]:
+        tokens: list[str] = []
+
+        tokens.extend(SPECIAL_TOKENS)
+        tokens.extend(CHANNEL_TOKENS)
+
+        tokens.extend(
+            f"NOTE_{pitch}"
+            for pitch in range(1, 109)
+        )
+
+        tokens.extend(
+            f"VELOCITY_{velocity}"
+            for velocity in range(1, 16)
+        )
+
+        tokens.extend(
+            f"TIME_SHIFT_{step}"
+            for step in range(1, MAX_TIME_SHIFT + 1)
+        )
+
+        tokens.extend(
+            f"DURATION_{step}"
+            for step in range(1, MAX_DURATION + 1)
+        )
+
+        return {
+            token: token_id
+            for token_id, token in enumerate(tokens)
+        }
+
+    def encode(self, tokens: list[str]) -> list[int]:
+        return [
+            self.token_to_id[token]
+            for token in tokens
+        ]
+
+    def decode(self, token_ids: list[int]) -> list[str]:
+        return [
+            self.id_to_token[token_id]
+            for token_id in token_ids
+        ]
+
+    @property
+    def vocab_size(self) -> int:
+        return len(self.token_to_id)
 
     def quantize_ticks(self, ticks: int, ticks_per_beat: int) -> int:
         """
@@ -139,15 +209,22 @@ class GameTuneTokenizer:
                 ticks_per_beat,
             )
 
-            duration_step = max(
-                1, self.quantize_ticks(note.duration_tick, ticks_per_beat)
+            duration_step = min(
+                MAX_DURATION,
+                max(
+                    1,
+                    self.quantize_ticks(note.duration_tick, ticks_per_beat),
+                ),
             )
 
             time_delta = start_step - current_step
 
-            if time_delta > 0:
-                tokens.append(f"TIME_SHIFT_{time_delta}")
-                current_step = start_step
+            while time_delta > 0:
+                shift = min(time_delta, MAX_TIME_SHIFT)
+                tokens.append(f"TIME_SHIFT_{shift}")
+                time_delta -= shift
+
+            current_step = start_step
 
             tokens.append(note.channel)
             tokens.append(f"NOTE_{note.pitch}")
@@ -156,6 +233,13 @@ class GameTuneTokenizer:
 
         tokens.append("EOS")
         return tokens
+
+    def tokenize_to_ids(self, path: Path) -> list[int]:
+        """
+        Convert one MIDI file into integer token IDs.
+        """
+        tokens = self.tokenize(path)
+        return self.encode(tokens)
 
     def tokenize(self, path: Path) -> list[str]:
         """
