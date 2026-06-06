@@ -161,6 +161,26 @@ DURATION_2
 * Timing: Quantized musical grid
 * Training samples: One song per sequence
 
+## Token Statistics
+
+Tokenized files analyzed: 5278
+
+| Metric | Value |
+|----------|----------|
+| Min tokens | 2 |
+| Mean tokens | 2912.10 |
+| Median tokens | 1390.50 |
+| P90 | 7034 |
+| P95 | 9883 |
+| P99 | 20843 |
+| Max tokens | 190170 |
+
+### Training Decisions
+
+* Initial context size: 2048 tokens
+* Longer songs will be split into multiple training sequences
+* Extremely long songs are treated as outliers
+
 ## Train
 
 TBD

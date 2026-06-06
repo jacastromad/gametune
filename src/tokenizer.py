@@ -1,7 +1,7 @@
 """
 tokenizer.py
 
-Convert NES-MDB MIDI files into GameTune tokens.
+Convert MIDI files into GameTune tokens.
 Supports MIDI -> structured note events -> text tokens -> token IDs.
 """
 
