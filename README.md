@@ -15,6 +15,7 @@ Train a small Transformer from scratch on NES-style video game music.
 ├── checkpoints/
 ├── data/
 ├── src/
+├── tests/
 ├── config.yml
 ├── docker-compose.yml
 ├── Dockerfile
@@ -153,7 +154,7 @@ DURATION_2
 * Channels: Keep as explicit tokens
 * Notes: NOTE + DURATION
 * Time: TIME_SHIFT tokens
-* Velocity: Keep, quantized
+* Velocity: Keep (1-15)
 * Special tokens: PAD, BOS, EOS
 * Track handling: All channels merged into one event stream
 * Tempo: Ignore
@@ -179,7 +180,39 @@ Tokenized files analyzed: 5278
 
 * Initial context size: 2048 tokens
 * Longer songs will be split into multiple training sequences
-* Extremely long songs are treated as outliers
+* Extremely long songs are chunked during training
+
+## Data Pipeline
+
+Analyze dataset:
+
+```bash
+docker compose run --rm gametune \
+    python src/analyze_dataset.py data/raw/nesmdb_midi
+```
+
+Analyze token lengths:
+
+```bash
+docker compose run --rm gametune \
+    python src/analyze_tokens.py data/raw/nesmdb_midi
+```
+
+Tokenize dataset:
+
+```bash
+docker compose run --rm gametune \
+    python src/tokenize_dataset.py \
+    data/raw/nesmdb_midi \
+    data/tokenized
+```
+
+Inspect dataset:
+
+```bash
+docker compose run --rm gametune \
+    python src/dataset.py data/tokenized/train
+```
 
 ## Train
 
