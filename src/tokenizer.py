@@ -331,7 +331,11 @@ class GameTuneTokenizer:
                 pitch = int(note_token.removeprefix("NOTE_"))
                 velocity = int(velocity_token.removeprefix("VELOCITY_"))
                 duration = int(duration_token.removeprefix("DURATION_"))
-    
+
+                # NES velocities are 1-15.
+                # Scale them to a more usable General MIDI range.
+                velocity = min(127, velocity * 8)
+
                 start_tick = round(current_step * ticks_per_step)
                 duration_tick = max(1, round(duration * ticks_per_step))
                 end_tick = start_tick + duration_tick

@@ -1,10 +1,8 @@
 """
 generate.py
 
-Generate token sequences from a trained GameTune checkpoint.
-
-This first version only generates and prints text tokens.
-MIDI reconstruction will be added later.
+Generate token sequences from a trained GameTune checkpoint
+and save them as a MIDI file.
 """
 
 from pathlib import Path
