@@ -230,7 +230,9 @@ Generate token sequences and MIDI:
 ```bash
 docker compose run --rm gametune \
     python src/generate.py \
-    --checkpoint checkpoints/gametune.pt \
+    --checkpoint checkpoints/gametune_checkpoint.pt \
+    --temperature 1.0 \
+    --top-k 50 \
     --output outputs/generated.mid
 ```
 
