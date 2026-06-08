@@ -98,7 +98,29 @@ def save_checkpoint(
     )
 
 
-def train(config: dict) -> None:
+def load_checkpoint(
+    path: Path,
+    model: GameTuneModel,
+    optimizer: torch.optim.Optimizer,
+    device: str,
+) -> int:
+    """
+    Load model and optimizer state from a checkpoint.
+
+    Returns the training step stored in the checkpoint.
+    """
+    checkpoint = torch.load(path, map_location=device)
+
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+    return checkpoint["step"]
+
+
+def train(
+    config: dict,
+    resume_path: Path | None = None,
+) -> None:
     """
     Main training loop.
     """
@@ -155,10 +177,8 @@ def train(config: dict) -> None:
         weight_decay=config["training"]["weight_decay"],
     )
 
-    checkpoint_path = (
-        Path(config["checkpoints"]["output_dir"])
-        / config["checkpoints"]["checkpoint_name"]
-    )
+    checkpoint_dir = Path(config["checkpoints"]["output_dir"])
+    checkpoint_name = config["checkpoints"]["checkpoint_name"]
 
     print(f"train_samples: {len(train_dataset)}")
     print(f"test_samples: {len(test_dataset)}")
@@ -166,10 +186,29 @@ def train(config: dict) -> None:
     print(f"device: {device}")
 
     # ---------------------------------------------------------
+    # Resume
+    # ---------------------------------------------------------
+    #
+    # Restore model weights, optimizer state, and step counter.
+    #
+
+    step = 0
+
+    if resume_path is not None:
+        step = load_checkpoint(
+            path=resume_path,
+            model=model,
+            optimizer=optimizer,
+            device=device,
+        )
+
+        print(f"resumed from checkpoint: {resume_path}")
+        print(f"resumed from step: {step}")
+
+    # ---------------------------------------------------------
     # Training loop
     # ---------------------------------------------------------
 
-    step = 0
     model.train()
 
     while step < config["training"]["max_steps"]:
@@ -247,31 +286,38 @@ def train(config: dict) -> None:
             # -------------------------------------------------
 
             if step % config["training"]["checkpoint_interval"] == 0:
-                save_checkpoint(
-                    path=checkpoint_path,
-                    model=model,
-                    optimizer=optimizer,
-                    step=step,
-                    config=config,
+                step_checkpoint_path = (
+                    checkpoint_dir
+                    / f"{checkpoint_name}_step_{step:06d}.pt"
                 )
 
-                print(
-                    f"saved checkpoint: "
-                    f"{checkpoint_path}"
+                save_checkpoint(
+                    step_checkpoint_path,
+                    model,
+                    optimizer,
+                    step,
+                    config,
                 )
+
+                print(f"saved checkpoint: {step_checkpoint_path}")
 
     # Final checkpoint after training completes.
+    step_checkpoint_path = (
+        checkpoint_dir
+        / f"{checkpoint_name}_step_{step:06d}.pt"
+    )
+
     save_checkpoint(
-        path=checkpoint_path,
-        model=model,
-        optimizer=optimizer,
-        step=step,
-        config=config,
+        step_checkpoint_path,
+        model,
+        optimizer,
+        step,
+        config,
     )
 
     print()
     print(f"finished training at step {step}")
-    print(f"saved checkpoint: {checkpoint_path}")
+    print(f"saved checkpoint: {step_checkpoint_path}")
 
 
 def main() -> None:
@@ -289,10 +335,21 @@ def main() -> None:
         help="Path to config file.",
     )
 
+    parser.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        help="Path to checkpoint to resume from.",
+    )
+
     args = parser.parse_args()
 
     config = load_config(args.config)
-    train(config)
+
+    train(
+        config=config,
+        resume_path=args.resume,
+    )
 
 
 if __name__ == "__main__":
