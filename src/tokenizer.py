@@ -125,31 +125,40 @@ class GameTuneTokenizer:
         Extract note events from one MIDI track.
         """
         current_tick = 0
-        active_notes: dict[int, tuple[int, int]] = {}
+        active_notes: dict[int, list[tuple[int, int]]] = {}
         notes: list[NoteEvent] = []
-
+    
         for message in track:
             current_tick += message.time
-
+    
             if message.type == "note_on" and message.velocity > 0:
-                active_notes[message.note] = (
-                    current_tick,
-                    message.velocity,
+                active_notes.setdefault(message.note, []).append(
+                    (
+                        current_tick,
+                        message.velocity,
+                    )
                 )
-
+    
             elif (
                 message.type == "note_off"
                 or (message.type == "note_on" and message.velocity == 0)
             ):
                 if message.note not in active_notes:
                     continue
-
-                start_tick, velocity = active_notes.pop(message.note)
+    
+                if not active_notes[message.note]:
+                    continue
+    
+                start_tick, velocity = active_notes[message.note].pop(0)
+    
+                if not active_notes[message.note]:
+                    del active_notes[message.note]
+    
                 duration_tick = current_tick - start_tick
-
+    
                 if duration_tick <= 0:
                     continue
-
+    
                 notes.append(
                     NoteEvent(
                         start_tick=start_tick,
@@ -159,7 +168,7 @@ class GameTuneTokenizer:
                         velocity=velocity,
                     )
                 )
-
+    
         return notes
 
     def extract_midi_notes(self, path: Path) -> tuple[list[NoteEvent], int]:
@@ -273,7 +282,13 @@ class GameTuneTokenizer:
         midi = mido.MidiFile(type=1, ticks_per_beat=ticks_per_beat)
     
         tempo_track = mido.MidiTrack()
-        tempo_track.append(mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(tempo_bpm), time=0))
+        tempo_track.append(
+            mido.MetaMessage(
+                "set_tempo",
+                tempo=mido.bpm2tempo(tempo_bpm),
+                time=0,
+            )
+        )
         tempo_track.append(mido.MetaMessage("end_of_track", time=0))
         midi.tracks.append(tempo_track)
     
@@ -284,7 +299,14 @@ class GameTuneTokenizer:
             "CHANNEL_NO": "no",
         }
     
-        tracks = {}
+        channel_to_midi_channel = {
+            "CHANNEL_P1": 0,
+            "CHANNEL_P2": 1,
+            "CHANNEL_TR": 2,
+            "CHANNEL_NO": 9,
+        }
+    
+        tracks: dict[str, list[tuple[int, str, int, int]]] = {}
     
         for channel_token, track_name in channel_to_track_name.items():
             track = mido.MidiTrack()
@@ -331,11 +353,11 @@ class GameTuneTokenizer:
                 pitch = int(note_token.removeprefix("NOTE_"))
                 velocity = int(velocity_token.removeprefix("VELOCITY_"))
                 duration = int(duration_token.removeprefix("DURATION_"))
-
+    
                 # NES velocities are 1-15.
                 # Scale them to a more usable General MIDI range.
                 velocity = min(127, velocity * 8)
-
+    
                 start_tick = round(current_step * ticks_per_step)
                 duration_tick = max(1, round(duration * ticks_per_step))
                 end_tick = start_tick + duration_tick
@@ -348,9 +370,17 @@ class GameTuneTokenizer:
     
             index += 1
     
-        for midi_track, channel_token in zip(midi.tracks[1:], channel_to_track_name):
-            events = sorted(tracks[channel_token], key=lambda event: event[0])
+        for midi_track, channel_token in zip(
+            midi.tracks[1:],
+            channel_to_track_name,
+        ):
+            events = sorted(
+                tracks[channel_token],
+                key=lambda event: event[0],
+            )
+    
             previous_tick = 0
+            midi_channel = channel_to_midi_channel[channel_token]
     
             for tick, message_type, pitch, velocity in events:
                 delta = max(0, tick - previous_tick)
@@ -362,6 +392,7 @@ class GameTuneTokenizer:
                         note=pitch,
                         velocity=velocity,
                         time=delta,
+                        channel=midi_channel,
                     )
                 )
     
