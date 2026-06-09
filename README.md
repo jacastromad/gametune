@@ -228,9 +228,11 @@ docker compose run --rm gametune \
 Generate token sequences and MIDI:
 
 ```bash
-docker compose run --rm gametune \
-    python src/generate.py \
+docker compose run --rm gametune python src/generate.py \
     --checkpoint checkpoints/gametune_checkpoint.pt \
+    --prompt-midi data/raw/nesmdb_midi/test/midi_file.mid \
+    --prompt-tokens 256 \
+    --max-new-tokens 2000 \
     --temperature 1.0 \
     --top-k 50 \
     --output outputs/generated.mid

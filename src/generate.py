@@ -7,8 +7,10 @@ and save them as a MIDI file.
 
 from pathlib import Path
 import argparse
+
 import torch
 import torch.nn.functional as F
+
 from src.model import GameTuneModel, GameTuneModelConfig
 from src.tokenizer import GameTuneTokenizer
 
@@ -60,8 +62,30 @@ def sample_next_token(
     return int(next_token.item())
 
 
+def load_prompt_token_ids(
+    prompt_midi: Path | None,
+    prompt_tokens: int,
+    tokenizer: GameTuneTokenizer,
+) -> list[int]:
+    """
+    Load optional prompt tokens from a MIDI file.
+
+    If no prompt is provided, generation starts from BOS.
+    """
+    if prompt_midi is None:
+        return [tokenizer.token_to_id["BOS"]]
+
+    token_ids = tokenizer.tokenize_to_ids(prompt_midi)
+
+    if prompt_tokens <= 0:
+        raise ValueError("prompt_tokens must be greater than zero.")
+
+    return token_ids[:prompt_tokens]
+
+
 def generate_token_ids(
     model: GameTuneModel,
+    initial_token_ids: list[int],
     tokenizer: GameTuneTokenizer,
     device: str,
     max_new_tokens: int,
@@ -71,7 +95,7 @@ def generate_token_ids(
     """
     Generate token IDs autoregressively.
     """
-    token_ids = [tokenizer.token_to_id["BOS"]]
+    token_ids = initial_token_ids.copy()
 
     for _ in range(max_new_tokens):
         input_ids = torch.tensor(
@@ -114,7 +138,7 @@ def main() -> None:
         "--max-new-tokens",
         type=int,
         default=300,
-        help="Maximum number of tokens to generate.",
+        help="Maximum number of new tokens to generate.",
     )
 
     parser.add_argument(
@@ -145,6 +169,20 @@ def main() -> None:
         help="Path to generated MIDI file.",
     )
 
+    parser.add_argument(
+        "--prompt-midi",
+        type=Path,
+        default=None,
+        help="Optional MIDI file used as a generation prompt.",
+    )
+
+    parser.add_argument(
+        "--prompt-tokens",
+        type=int,
+        default=256,
+        help="Number of prompt tokens to keep from --prompt-midi.",
+    )
+
     args = parser.parse_args()
 
     tokenizer = GameTuneTokenizer()
@@ -152,8 +190,15 @@ def main() -> None:
     checkpoint = load_checkpoint(args.checkpoint, args.device)
     model = load_model(checkpoint, args.device)
 
+    initial_token_ids = load_prompt_token_ids(
+        prompt_midi=args.prompt_midi,
+        prompt_tokens=args.prompt_tokens,
+        tokenizer=tokenizer,
+    )
+
     token_ids = generate_token_ids(
         model=model,
+        initial_token_ids=initial_token_ids,
         tokenizer=tokenizer,
         device=args.device,
         max_new_tokens=args.max_new_tokens,
@@ -166,6 +211,11 @@ def main() -> None:
 
     print(f"saved_midi: {args.output}")
     print(f"checkpoint: {args.checkpoint}")
+
+    if args.prompt_midi is not None:
+        print(f"prompt_midi: {args.prompt_midi}")
+        print(f"prompt_tokens: {args.prompt_tokens}")
+
     print(f"generated_tokens: {len(tokens)}")
     print()
 
