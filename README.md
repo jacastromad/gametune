@@ -223,6 +223,14 @@ docker compose run --rm gametune \
     python src/train.py --config config.yml
 ```
 
+Resume training:
+
+```bash
+docker compose run --rm gametune \
+    python src/train.py --config config.yml \
+    --resume checkpoints/gametune_checkpoint.pt
+```
+
 ## Generate
 
 Generate token sequences and MIDI:
